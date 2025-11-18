@@ -7,6 +7,8 @@ Mini integration platform that simulates Fulfil (ERP) → Ecomflow → Mabang (W
 - Node.js 18+
 - pnpm
 
+![Dashboard preview](src/assets/Dashboard.png)
+
 ## Getting Started
 
 ```bash
@@ -27,8 +29,6 @@ GET  `/health` | Health signal + metrics counters
 GET  `/deadletters` | Dead letter queue overview
 POST  `/deadletters/:erpOrderId/replay` | Replay a failed sync
 POST  `/test/order` | Inject sample ERP order
-
-![Dashboard preview](src/assets/Dashboard.png)
 
 ## Features
 
