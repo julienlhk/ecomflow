@@ -20,15 +20,17 @@ Server listens on `http://localhost:8787` and serves the dashboard.
 
 ## Key Endpoints
 
-POST  `/erp/orders` | Ingest Fulfil order (idempotent)
-POST  `/sync/run` | Process pending orders, forward to WMS
-POST  `/wms/ack` | Mock acknowledgment from WMS
-GET  `/orders` | List all orders + states
-GET  `/reconciliation/run` | Reconciliation summary/details
-GET  `/health` | Health signal + metrics counters
-GET  `/deadletters` | Dead letter queue overview
-POST  `/deadletters/:erpOrderId/replay` | Replay a failed sync
-POST  `/test/order` | Inject sample ERP order
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/erp/orders` | Ingest Fulfil order (idempotent) |
+| POST | `/sync/run` | Process pending orders, forward to WMS |
+| POST | `/wms/ack` | Mock acknowledgment from WMS |
+| GET | `/orders` | List all orders + states |
+| GET | `/reconciliation/run` | Reconciliation summary/details |
+| GET | `/health` | Health signal + metrics counters |
+| GET | `/deadletters` | Dead letter queue overview |
+| POST | `/deadletters/:erpOrderId/replay` | Replay a failed sync |
+| POST | `/test/order` | Inject sample ERP order |
 
 ## Features
 
