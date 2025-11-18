@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ecomflow Backend Integration Dashboard</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background: #f6f8fa;
+      }
+      h1 {
+        margin-bottom: 4px;
+      }
+      section {
+        background: #fff;
+        padding: 16px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 18px;
+      }
+      button {
+        padding: 8px 12px;
+        margin-right: 6px;
+        border-radius: 4px;
+        border: 1px solid #0366d6;
+        background: #0366d6;
+        color: #fff;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #fff;
+        color: #0366d6;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      th, td {
+        border: 1px solid #e1e4e8;
+        padding: 8px;
+        text-align: left;
+        font-size: 14px;
+      }
+      th {
+        background: #f3f4f6;
+      }
+      #message {
+        min-height: 24px;
+        margin-top: 8px;
+        font-size: 14px;
+      }
+      .state-chip {
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .PENDING_SYNC { background: #fff5b1; }
+      .SENT_TO_WMS { background: #cdeffd; }
+      .ACKNOWLEDGED_BY_WMS { background: #b5f2c7; }
+      .FAILED { background: #ffd6d6; }
+      input {
+        padding: 6px;
+        margin-right: 6px;
+      }
+      .control-row {
+        margin-top: 10px;
+      }
+      tr.order-row {
+        cursor: pointer;
+      }
+      tr.order-row:hover {
+        background: #f6f8fa;
+      }
+      .order-details {
+        background: #f6f8fa;
+        padding: 12px;
+        border-top: 2px solid #0366d6;
+      }
+      .order-details h3 {
+        margin-top: 0;
+        font-size: 16px;
+      }
+      .detail-section {
+        margin-bottom: 16px;
+      }
+      .detail-label {
+        font-weight: bold;
+        color: #586069;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+      .detail-value {
+        font-size: 14px;
+      }
+      .line-item {
+        background: #fff;
+        padding: 8px;
+        margin: 4px 0;
+        border-left: 3px solid #0366d6;
+      }
+      .sublines-block {
+        margin-top: 8px;
+      }
+      .subline {
+        margin-left: 16px;
+        padding-left: 8px;
+        border-left: 2px solid #cdeffd;
+      }
+      .health-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+      }
+      .health-badge {
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-weight: bold;
+        text-transform: uppercase;
+      }
+      .health-badge.healthy {
+        background: #b5f2c7;
+        color: #0f5132;
+      }
+      .health-badge.degraded {
+        background: #fff5b1;
+        color: #856404;
+      }
+      .health-badge.critical {
+        background: #ffd6d6;
+        color: #842029;
+      }
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        flex: 1;
+      }
+      .metric-card {
+        background: #fff;
+        border: 1px solid #e1e4e8;
+        border-radius: 6px;
+        padding: 10px;
+      }
+      .metric-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #586069;
+      }
+      .metric-value {
+        font-size: 20px;
+        font-weight: bold;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Ecomflow Backend Integration Monitor</h1>
+    <p>Observe ERP → WMS order flow, retries, and reconciliation health.</p>
+
+    <section>
+      <h2>Manual Controls</h2>
+      <div>
+        <button onclick="injectOrder()">Inject sample ERP order</button>
+        <button onclick="runSync()">Run sync</button>
+        <button class="secondary" onclick="runReconciliation()">Run reconciliation</button>
+      </div>
+      <div class="control-row">
+        <input id="ackId" placeholder="MAB-XXXX" />
+        <button class="secondary" onclick="sendAck()">Send WMS ack</button>
+      </div>
+      <div id="message"></div>
+    </section>
+
+    <section>
+      <h2>Health & Metrics</h2>
+      <div class="health-row">
+        <span id="healthBadge" class="health-badge healthy">HEALTHY</span>
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Received</div>
+            <div class="metric-value" id="metricReceived">0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Sent to WMS</div>
+            <div class="metric-value" id="metricSynced">0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Acknowledged</div>
+            <div class="metric-value" id="metricAcknowledged">0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Failed</div>
+            <div class="metric-value" id="metricFailed">0</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Reconciliation Summary</h2>
+      <div id="summary">No data yet.</div>
+    </section>
+
+    <section>
+      <h2>Dead Letter Queue</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ERP Order</th>
+            <th>Ecomflow Order</th>
+            <th>Reason</th>
+            <th>Failed At</th>
+            <th>Attempts</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="deadLettersBody">
+          <tr><td colspan="6">No failed messages 🎉</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Orders</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ERP Order</th>
+            <th>Ecomflow Order</th>
+            <th>WMS Order</th>
+            <th>State</th>
+            <th>Attempts</th>
+            <th>Last Error</th>
+          </tr>
+        </thead>
+        <tbody id="ordersBody">
+          <tr><td colspan="6">No orders yet.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script>
+      const messageEl = document.getElementById('message');
+      const summaryEl = document.getElementById('summary');
+      const ordersBody = document.getElementById('ordersBody');
+      const deadLettersBody = document.getElementById('deadLettersBody');
+      const healthBadge = document.getElementById('healthBadge');
+      const metricsEls = {
+        received: document.getElementById('metricReceived'),
+        synced: document.getElementById('metricSynced'),
+        acknowledged: document.getElementById('metricAcknowledged'),
+        failed: document.getElementById('metricFailed')
+      };
+
+      async function injectOrder() {
+        await callApi('/test/order', { method: 'POST' }, 'Injected sample ERP order');
+        await Promise.all([refreshOrders(), fetchHealth(), fetchDeadLetters()]);
+      }
+
+      async function runSync() {
+        await callApi('/sync/run', { method: 'POST' }, 'Sync triggered');
+        await Promise.all([refreshOrders(), fetchHealth(), fetchDeadLetters()]);
+      }
+
+      async function runReconciliation() {
+        await Promise.all([fetchHealth(), fetchDeadLetters()]);
+        messageEl.textContent = 'Reconciliation refreshed';
+      }
+
+      async function sendAck() {
+        const id = document.getElementById('ackId').value.trim();
+        if (!id) {
+          messageEl.textContent = 'Enter a Mabang order id to acknowledge';
+          return;
+        }
+        await callApi('/wms/ack', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mabangOrderId: id })
+        }, 'Ack sent');
+        await Promise.all([refreshOrders(), fetchHealth(), fetchDeadLetters()]);
+      }
+
+      async function callApi(path, init = {}, successMsg = 'Done') {
+        try {
+          const res = await fetch(path, init);
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Request failed');
+          }
+          messageEl.textContent = successMsg;
+          return data;
+        } catch (err) {
+          console.error(err);
+          messageEl.textContent = err.message;
+        }
+      }
+
+      async function refreshOrders() {
+        const res = await fetch('/orders');
+        const data = await res.json();
+        renderOrders(data.orders || []);
+      }
+
+      const expandedOrders = new Set();
+
+      async function toggleOrderDetails(erpOrderId) {
+        if (expandedOrders.has(erpOrderId)) {
+          expandedOrders.delete(erpOrderId);
+        } else {
+          expandedOrders.add(erpOrderId);
+        }
+        await refreshOrders();
+      }
+
+      function renderOrders(orders) {
+        if (!orders || orders.length === 0) {
+          ordersBody.innerHTML = '<tr><td colspan="6">No orders yet.</td></tr>';
+          return;
+        }
+
+        ordersBody.innerHTML = orders
+          .map((order) => {
+            const isExpanded = expandedOrders.has(order.erpOrderId);
+            return `
+            <tr class="order-row" onclick="toggleOrderDetails('${order.erpOrderId}')">
+              <td>${order.erpOrderId}</td>
+              <td>${order.ecomflowOrderId}</td>
+              <td>${order.mabangOrderId || '-'}</td>
+              <td><span class="state-chip ${order.state}">${order.state}</span></td>
+              <td>${order.attempts}</td>
+              <td>${order.lastError || '-'}</td>
+            </tr>
+            ${isExpanded ? `<tr id="details-${order.erpOrderId}"><td colspan="6"></td></tr>` : ''}
+          `;
+          })
+          .join('');
+
+        expandedOrders.forEach(async (erpOrderId) => {
+          const detailsRow = document.getElementById(`details-${erpOrderId}`);
+          if (detailsRow) {
+            try {
+              const res = await fetch(`/orders/${erpOrderId}/details`);
+              const data = await res.json();
+              if (data.erpOrder) {
+                detailsRow.innerHTML = `<td colspan="6">${renderOrderDetails(data.erpOrder)}</td>`;
+              }
+            } catch (err) {
+              detailsRow.innerHTML = `<td colspan="6">Error loading details</td>`;
+            }
+          }
+        });
+      }
+
+      function renderOrderDetails(erpOrder) {
+        const addr = erpOrder.deliveryAddress;
+        return `
+          <div class="order-details">
+            <h3>Fulfil Order Payload Details</h3>
+            
+            <div class="detail-section">
+              <div class="detail-label">Delivery Address</div>
+              <div class="detail-value">
+                <strong>${addr.name}</strong>${addr.businessName ? ` (${addr.businessName})` : ''}<br/>
+                ${addr.address1}${addr.address2 ? `, ${addr.address2}` : ''}<br/>
+                ${addr.city}, ${addr.zip}<br/>
+                <strong>Country:</strong> ${addr.countryCode} | <strong>Province/State:</strong> ${addr.subdivisionCode || 'N/A'}<br/>
+                ${addr.phone ? `Phone: ${addr.phone}` : ''}
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <div class="detail-label">Order Lines</div>
+              ${erpOrder.lines.map((line, idx) => `
+                <div class="line-item">
+                  <div><strong>Line ${idx + 1}:</strong> ${line.product.name} (SKU: ${line.product.code})</div>
+                  <div>Quantity: ${line.quantity} | Currency: ${line.currency} | Customs Value: ${line.unitCustomsValue}</div>
+                  ${line.product.hsCode ? `<div><strong>HS Code:</strong> ${line.product.hsCode}</div>` : ''}
+                  ${line.sublines && line.sublines.length > 0 ? `
+                    <div class="sublines-block">
+                      <strong>Sublines (Bundle/Kit):</strong>
+                      ${line.sublines.map((subline) => `
+                        <div class="subline">
+                          ${subline.product.name} (SKU: ${subline.product.code}) - Qty: ${subline.quantity}
+                          ${subline.product.hsCode ? ` | HS Code: ${subline.product.hsCode}` : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderSummary(summary) {
+        if (!summary) {
+          summaryEl.textContent = 'No data yet.';
+          return;
+        }
+        summaryEl.innerHTML = `
+          <strong>In Sync:</strong> ${summary.inSync} &nbsp;|
+          <strong>Only in ERP:</strong> ${summary.onlyInErp} &nbsp;|
+          <strong>Only in WMS:</strong> ${summary.onlyInWms} &nbsp;|
+          <strong>Status mismatch:</strong> ${summary.statusMismatch}
+        `;
+      }
+
+      function renderHealthStatus(status = 'HEALTHY') {
+        const normalized = status.toLowerCase();
+        healthBadge.textContent = status;
+        healthBadge.className = `health-badge ${normalized}`;
+      }
+
+      function renderMetrics(metrics = {}) {
+        metricsEls.received.textContent = metrics.received ?? 0;
+        metricsEls.synced.textContent = metrics.synced ?? 0;
+        metricsEls.acknowledged.textContent = metrics.acknowledged ?? 0;
+        metricsEls.failed.textContent = metrics.failed ?? 0;
+      }
+
+      async function fetchHealth() {
+        try {
+          const res = await fetch('/health');
+          const data = await res.json();
+          renderHealthStatus(data.status);
+          if (data.metrics) {
+            renderMetrics(data.metrics);
+          }
+          renderSummary(data.summary);
+        } catch (err) {
+          console.error(err);
+          summaryEl.textContent = 'Unable to load reconciliation summary.';
+        }
+      }
+
+      async function fetchDeadLetters() {
+        try {
+          const res = await fetch('/deadletters');
+          const data = await res.json();
+          renderDeadLetters(data.deadLetters || []);
+        } catch (err) {
+          console.error(err);
+          deadLettersBody.innerHTML = '<tr><td colspan="6">Unable to load dead letters.</td></tr>';
+        }
+      }
+
+      function renderDeadLetters(deadLetters) {
+        if (!deadLetters || deadLetters.length === 0) {
+          deadLettersBody.innerHTML = '<tr><td colspan="6">No failed messages</td></tr>';
+          return;
+        }
+
+        deadLettersBody.innerHTML = deadLetters
+          .map(
+            (letter) => `
+              <tr>
+                <td>${letter.erpOrderId}</td>
+                <td>${letter.ecomflowOrderId}</td>
+                <td>${letter.reason}</td>
+                <td>${new Date(letter.failedAt).toLocaleString()}</td>
+                <td>${letter.attempts}</td>
+                <td><button class="secondary" onclick="replayDeadLetter('${letter.erpOrderId}')">Replay</button></td>
+              </tr>
+            `
+          )
+          .join('');
+      }
+
+      async function replayDeadLetter(erpOrderId) {
+        await callApi(`/deadletters/${erpOrderId}/replay`, { method: 'POST' }, 'Replay scheduled');
+        await Promise.all([refreshOrders(), fetchHealth(), fetchDeadLetters()]);
+      }
+
+      async function bootstrap() {
+        await Promise.all([refreshOrders(), fetchHealth(), fetchDeadLetters()]);
+      }
+
+      bootstrap();
+    </script>
+  </body>
+</html>

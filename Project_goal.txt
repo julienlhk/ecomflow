@@ -1,0 +1,491 @@
+COMPLETE PROJECT OVERVIEW FOR CURSOR
+
+Case Study: ERP → Ecomflow → WMS Integration & Monitoring
+
+1. Goal of the Case Study
+
+Build a mini integration platform (for Ecomflow) that sits between:
+	•	Fulfil (ERP) – external system
+	•	Ecomflow (your API, your logic) – middle orchestrator
+	•	Mabang (WMS) – warehouse system
+
+You must simulate the full order flow:
+
+Fulfil → Ecomflow → Mabang
+Mabang → Ecomflow → Fulfil (acknowledgment)
+
+The goal is to show that:
+	•	Orders move correctly through the flow
+	•	Your system is idempotent, reliable, and observable
+	•	You can detect when systems are out of sync
+	•	You can monitor and reconcile the integration
+
+Everything must be mocked (no real API calls).
+
+Total expected dev time: ~60–90 minutes.
+
+⸻
+
+2. What You Need to Build (High-Level)
+
+You need to deliver four main things:
+
+A. Integration Logic
+	•	Receive orders from ERP (mocked)
+	•	Transform ERP format → internal format → WMS format
+	•	Send orders to WMS (mocked)
+	•	Receive acknowledgment from WMS (mocked)
+	•	Track each order’s sync state
+
+B. Reliability Features
+	•	Idempotency: repeated ERP payloads shouldn’t create duplicates
+	•	Retry logic for failed WMS calls
+	•	Error logging and saved failure reasons
+	•	States:
+	•	PENDING_SYNC
+	•	SENT_TO_WMS
+	•	ACKNOWLEDGED_BY_WMS
+	•	FAILED
+
+C. Monitoring & Reconciliation
+	•	Store minimal order records from ERP + WMS
+	•	Expose an endpoint that compares both sides
+	•	Return a reconciliation summary (inSync / onlyInERP / onlyInWMS / mismatched)
+
+D. Simple Dashboard UI
+
+A very small webpage that displays:
+	•	All orders + their state
+	•	Reconciliation summary
+	•	Buttons to:
+	•	Inject a test ERP order
+	•	Trigger sync
+	•	Run reconciliation
+
+Focus on clarity, not design.
+
+⸻
+
+3. Working Project
+
+Runs locally with:
+
+pnpm install
+pnpm run dev
+
+
+⸻
+
+4. Required Tech Stack
+
+You must follow this stack (or something equivalent):
+
+Backend / API
+	•	Hono (Cloudflare Worker–style routing)
+	•	TypeScript strict
+	•	Zod (validation)
+	•	In-memory store or JSON or SQLite/Drizzle
+	•	Optional: simple job runner for retries
+
+Frontend
+	•	Anything simple:
+	•	one HTML file
+	•	or React SPA
+	•	or Next.js App Router
+Just keep it lightweight.
+
+Mocking external systems
+	•	Fake Fulfil endpoint (POST ERP order)
+	•	Fake Mabang API client (simulated responses + random failures)
+
+⸻
+
+5. Required API Endpoints (Minimum)
+
+You need to create five endpoints:
+
+1. POST /erp/orders
+
+Simulate Fulfil sending an order.
+You receive the payload and store it with state PENDING_SYNC.
+
+2. POST /sync/run
+
+Process all PENDING orders.
+Transform → send to WMS → update state.
+Retry errors.
+
+3. POST /wms/ack
+
+Simulate WMS acknowledging an order.
+Update to ACKNOWLEDGED_BY_WMS.
+
+4. GET /reconciliation/run
+
+Compare ERP records vs WMS records.
+Return summary:
+
+{
+  inSync: number,
+  onlyInErp: number,
+  onlyInWms: number,
+  statusMismatch: number
+}
+
+5. GET /orders
+
+Display all orders and their states.
+
+Optional but useful:
+	•	POST /test/order to inject random sample orders.
+
+⸻
+
+6. Required File/Folder Structure
+
+Minimum clean structure:
+
+/src
+  index.ts                # Hono app init
+  /api
+    erp.ts                # POST /erp/orders
+    sync.ts               # POST /sync/run
+    wms.ts                # POST /wms/ack
+    reconciliation.ts     # GET /reconciliation/run
+    orders.ts             # GET /orders
+  /services
+    erpService.ts
+    syncService.ts
+    wmsService.ts
+    reconciliationService.ts
+  /store
+    db.ts                 # in-memory or sqlite storage
+  /wms
+    mabangClient.ts       # mocked WMS API
+  /models
+    types.ts              # Zod schemas + types
+  /ui
+    dashboard.html        # barebones dashboard
+
+You can compress more, but this is clean.
+
+⸻
+
+7. Detailed Behavior Requirements
+
+Order Ingestion (ERP → Ecomflow)
+	•	Validate payload with Zod
+	•	Save ERP order
+	•	Create an internal OrderSyncRecord with state = PENDING_SYNC
+	•	If the same ERP order arrives again → detect duplicate and do nothing (idempotent)
+
+Sync to WMS
+	•	Fetch all PENDING_SYNC orders
+	•	Transform:
+	•	address format
+	•	line items
+	•	product metadata
+	•	Use mabangClient:
+	•	simulate API latency and occasional errors
+	•	If success:
+	•	Save a mock mabangOrderId
+	•	Move state to SENT_TO_WMS
+	•	If fail:
+	•	Retry with limited attempts
+	•	After max retries → state = FAILED + store error
+
+WMS Acknowledgment
+	•	Manual POST from mock UI or API
+	•	Update order state to ACKNOWLEDGED_BY_WMS
+
+Reconciliation
+
+Compare:
+	•	ERP store
+	•	WMS store
+	•	Sync records
+
+Identify:
+	•	Only in ERP
+	•	Only in WMS
+	•	In sync
+	•	Mismatched status
+
+Return summary JSON.
+
+⸻
+
+8. What You Are Achieving (the purpose)
+
+You are demonstrating:
+	•	You can build a reliable integration
+	•	You understand idempotency
+	•	You know how to model data across systems
+	•	You can track state transitions cleanly
+	•	You can detect inconsistencies between systems
+	•	You can expose operational visibility via a dashboard
+	•	You can build a small but production-like architecture
+
+The exercise is not about UI or perfection — it’s about integration thinking, architecture, reliability, and monitoring.
+
+⸻
+
+9. Summary for Cursor (paste this)
+
+Build a small integration platform called Ecomflow sitting between Fulfil (ERP) and Mabang (WMS).
+Simulate the order flow ERP → Ecomflow → WMS and WMS → Ecomflow (ACK).
+
+Implement:
+	•	ingestion endpoint (POST /erp/orders)
+	•	sync engine (POST /sync/run)
+	•	WMS acknowledgment (POST /wms/ack)
+	•	reconciliation endpoint (GET /reconciliation/run)
+	•	orders list (GET /orders)
+
+Implement:
+	•	strict TypeScript
+	•	Zod validation
+	•	in-memory storage
+	•	idempotent processing
+	•	retry logic
+	•	error tracking
+	•	monitoring + reconciliation
+
+Add a simple dashboard UI showing orders and sync states plus buttons to inject orders and run sync/reconciliation.
+
+Mock external systems via simple endpoints and fake WMS client.
+
+This must run with pnpm install + pnpm run dev.
+
+
+---- 
+
+# Case Study: ERP→ Ecomflow → WMS Integration & Monitoring
+
+# Overview
+
+Design and implement a small, robust integration between an external ERP, Ecomflow, and our WMS.
+
+You’ll simulate how orders flow from **Fulfil (ERP)** → **Ecomflow** → **Mabang (WMS)** and back, and show how you keep both sides in sync and observable.
+
+This should take roughly **60–90 minutes**; we care more about your modeling, explanation and reasoning than perfection.
+
+## Context
+
+Ecomflow connects merchants (normally just via Shopify), ERPs, and warehouses. For this case, you’ll model a world-first simplified integration between:
+
+- An external ERP (**Fulfil**)
+- **Ecomflow** as the orchestration layer
+- A third-party WMS (**Mabang** – `https://gwapi.mabangerp.com/web/`)
+
+Your goal is to make it **provable** that:
+
+- Orders are correctly routed from Fulfil → Ecomflow → Mabang and acknowledged back.
+- Fulfil and Mabang stay in sync (or, when they don’t, it’s easy to see and debug why).
+
+Assume **mocked external systems** (no real credentials or network calls), but design your solution as if it could be productionised.
+
+**Suggested stack (adapt if you prefer something similar):**
+
+- Cloudflare Worker–style API (e.g. Hono + `@hono/zod-openapi`)
+- TypeScript (strict)
+- Zod (or similar) for input validation
+- Simple in-memory / file-based store to save time (or SQLite/Drizzle)
+- Optional background processing via Cloudflare-style workflows/queues or a simple in-process job runner
+
+---
+
+## Core Tasks
+
+### 1. Order Flow: Fulfil → Ecomflow → Mabang
+
+- Model a simple **Fulfil order payload** coming into Ecomflow, including:
+    - A delivery address with fields such as `countryCode` and `subdivisionCode` (province/state).
+    - Order lines with product metadata (e.g. `code` / SKU, `hsCode`, customs value).
+    - Optional nested `sublines` to represent kits / bundles.
+- Implement a service that:
+    - Pulls new orders from Fulfil (mock API endpoint or route handler).
+    - Transforms/normalises them into Ecomflow’s internal format.
+    - Forwards them to Mabang via a mocked WMS client.
+- Track a few meaningful states, for example:
+    - `PENDING_SYNC` (received from ERP but not yet sent to WMS)
+    - `SENT_TO_WMS`
+    - `ACKNOWLEDGED_BY_WMS`
+    - `FAILED` (with error details)
+
+### 2. Reliability & Idempotency
+
+- Ensure the flow behaves safely when:
+    - Fulfil retries sending the same order.
+    - Mabang is temporarily unavailable or returns errors.
+- Implement at least:
+    - **Idempotent order handling** (no duplicate WMS orders for the same ERP order).
+    - A **retry strategy** (e.g. limited or backoff-style) for failed calls to Mabang.
+    - A simple way to **see failed messages** (for example, a list of recent failures with reasons).
+
+### 3. Monitoring, Sync & Reconciliation
+
+- Implement enough monitoring to understand if ERP and WMS are in sync:
+    - Store a minimal “source of truth” view of orders on both sides (mocked).
+    - Build a reconciliation job or endpoint that:
+        - Compares ERP-side and WMS-side state for all orders.
+        - Detects basic discrepancies (e.g. missing on one side, mismatched status).
+        - Returns a short summary (e.g. counts of “in sync”, “only in ERP”, “only in WMS”).
+
+### 4. Simple Dashboard UI
+
+- Build a small dashboard that:
+    - Shows a list of orders and their sync state across ERP / Ecomflow / WMS.
+    - Shows a minimal reconciliation/health summary.
+    - Lets you:
+        - Trigger a manual reconciliation run.
+        - Inject a test “Fulfil order” into the flow.
+- Basic styling is enough – clarity and observability are more important than design.
+
+---
+
+## Technical Requirements
+
+**Architecture**
+
+- Use a layered structure with clear separation between:
+    - API layer (Worker routes / Hono handlers)
+    - Services (integration / orchestration logic)
+    - Data access / storage
+- Use TypeScript strictly (no `any`).
+- Validate external pulled inputs (Fulfil payloads, etc.) with Zod or similar.
+
+**Integration & Reliability**
+
+- Treat Fulfil and Mabang as separate systems with explicit input/output types.
+- Model transformations explicitly (ERP → Ecomflow → WMS).
+- Implement:
+    - Idempotent handling of incoming ERP messages.
+    - A retry strategy for WMS calls with clear errors when retries are exhausted.
+    - Useful logging around failures and state transitions (structured `console.log` is fine).
+
+**Monitoring & Reconciliation**
+
+- Provide at least one API endpoint and one UI view to:
+    - Inspect current integration health.
+    - See recent failures or out-of-sync orders.
+- Handle partial failures gracefully (e.g. some orders fail reconciliation).
+
+**Frontend**
+
+- Any lightweight approach is fine (Next.js App Router, a simple SPA, or HTML served by the Worker).
+- Include loading states where it makes sense.
+- Optimise for understanding the flow and state, not for pixel-perfect UI.
+
+**Setup**
+
+- The project should run locally with:
+    - `pnpm install`
+    - `pnpm run dev`
+
+---
+
+## Sample Data Structures
+
+These are **suggestions** based on how we model things today, feel free to simplify or adjust if you keep the intent.
+
+```tsx
+// Incoming order from the external ERP (Fulfil), loosely based on real payloads
+type ErpAddress = {
+	name: string;
+	address1: string;
+	address2?: string | null;
+	businessName?: string | null;
+	city: string;
+	zip: string;
+	countryCode: string; // e.g. "ES"
+	subdivisionCode?: string | null; // province / state, e.g. "Z"
+	phone?: string | null;
+};
+
+type ErpOrderLineProduct = {
+	id: number;
+	name: string;
+	code: string; // ERP product code / SKU
+	hsCode?: string | null; // customs HS code, e.g. "4202920000"
+};
+
+type ErpOrderSubline = {
+	id: number;
+	product: ErpOrderLineProduct;
+	quantity: number;
+};
+
+type ErpOrderLine = {
+	id: number;
+	product: ErpOrderLineProduct;
+	quantity: number;
+	currency: string; // e.g. "USD"
+	unitCustomsValue: number; // parsed from Fulfil's Decimal structure
+	sublines?: ErpOrderSubline[]; // for bundles / kits
+};
+
+type ErpOrderInput = {
+	erpOrderId: string;
+	organizationId: string;
+	channelId: string;
+	deliveryAddress: ErpAddress;
+	lines: ErpOrderLine[];
+};
+
+// Simplified view of a Mabang order (based on `mabangOrder`)
+type MabangOrderRecord = {
+	id: string; // mabangOrder.id
+	platformOrderId?: string | null;
+	shopId: string; // mabangOrder.shopId
+	createDate: Date;
+	orderStatus?: string | null;
+	trackNumber?: string | null;
+	countryCode?: string | null;
+	issueStatus: "NO_ISSUE" | "UNRESOLVED" | "RESOLVED";
+	isManualHold: boolean;
+};
+
+// Simplified view of Mabang line items (based on `mabangOrderItem`)
+type MabangOrderItemRecord = {
+	id: string; // mabangOrderItem.id
+	orderId: string; // foreign key to MabangOrderRecord.id
+	mabangSKU?: string | null;
+	quantity: number;
+	platformSku?: string | null;
+	erpOrderItemId?: string | null;
+};
+
+// High-level sync state Ecomflow keeps to track ERP ↔ WMS linkage
+type SyncState = "PENDING_SYNC" | "SENT_TO_WMS" | "ACKNOWLEDGED_BY_WMS" | "FAILED";
+
+type OrderSyncRecord = {
+	ecomflowOrderId: string;
+	erpOrderId: string;
+	mabangOrderId?: string;
+	state: SyncState;
+	lastError?: string;
+};
+
+type ReconciliationSummary = {
+	inSync: number;
+	onlyInErp: number;
+	onlyInWms: number;
+	statusMismatch: number;
+};
+
+```
+
+---
+---
+
+## Bonus (Nice to Have)
+
+None of this is required, but these are good signals if you have time:
+
+- **Metrics & health signals** – simple counters for received/synced/failed orders, or a “health” endpoint that goes red when discrepancies pass a threshold.
+- **Dead-letter handling** – a small queue or section in the UI for permanently failed messages with a manual “replay” option.
+- **Background jobs** – using a workflow/queue system instead of doing all work inline on the request.
+- **API documentation** – a small OpenAPI/Swagger view (e.g. via `@hono/zod-openapi`) describing your endpoints.
+
+---
